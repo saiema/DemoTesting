@@ -1,6 +1,9 @@
 #!/bin/bash
 
-set -x #Comment to disable debug output of this script
+source utils.sh
+DEBUG=1
+
+#set -x #Comment to disable debug output of this script (this is a full verbosity mode; you should use the debug functionality from utils.sh instead)
 
 #Arguments
 example="$1"
@@ -17,8 +20,7 @@ elif [ "$example" == "goodWithRep" ]; then
 	classname="motivating.queue.GoodQueueWithRep"
 	testDir="tests/queuebest/goodWithRep/"
 else 
-	echo "Bad option: $example"
-	exit -1
+	error "Bad option: $example" -1
 fi
 sourceDir="benchmarks/src/"
 binDir="benchmarks/bin/"
@@ -36,6 +38,9 @@ HAMCREST="${CURRENT_DIR}/tools/org.hamcrest.core_1.3.0.v201303031735.jar"
 TESTING_JARS_ES="${CURRENT_DIR}/tools/evosuite/evosuite-standalone-runtime-1.0.6.jar"
 ES_JUNIT_SUFFIX="ESTest"	#EvoSuite test suffix
 #JACOCO
+USE_OFFLINE_INSTRUMENTATION=1 #0 : do not use offline instrumentation; 1 : use offline instrumentation
+OFFLINE_EXEC_FILE_LOCATION="jacoco.exec"
+OFFLINE_INSTR_DIR_LOCATION="instrumentedCode"
 JACOCO_AGENT="JaCoCoRS/jacocoagent.jar"
 JACOCO_CLI="JaCoCoRS/jacococli.jar"
 JACOCO_REPORT="JaCoCoRS/JaCoCoRS.sh"
@@ -50,7 +55,7 @@ JACOCO_REPORT="JaCoCoRS/JaCoCoRS.sh"
 #budget 		: the time budget (in seconds) for evosuite
 #seed 			: the seed to be used for the random generator
 function evosuite() {
-	echo "Running EvoSuite..."
+	infoMessage "Running EvoSuite..."
 	#-base_dir $outputDir 
 	local class="$1"
 	local projectCP="$2"
@@ -58,6 +63,7 @@ function evosuite() {
 	local criterion="$4"
 	local budget="$5"
 	local seed="$6"
+	debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -criterion $criterion -Djunit_suffix=$ES_JUNIT_SUFFIX -Dsearch_budget=$budget -seed $seed"
 	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -criterion $criterion -Djunit_suffix="$ES_JUNIT_SUFFIX" -Dsearch_budget=$budget -seed $seed
 }
 
@@ -67,16 +73,18 @@ function evosuite() {
 #classpath	: required classpath
 #exitCode(R)	: where to return the exit code
 function compileEvosuiteTests() {
-	echo "Compiling EvoSuite tests..."
+	infoMessage "Compiling EvoSuite tests..."
 	local target="$1"
 	local rootFolder="$2"
 	local classpath="$3"
 	pushd $rootFolder
 	local exitCode=""
+	debug "Running cmd: javac -cp $classpath:$JUNIT:$TESTING_JARS_ES $target"
 	javac -cp "$classpath:$JUNIT:$TESTING_JARS_ES" "$target"
 	exitCode="$?"
+	debug "Exit code: $exitCode"
 	popd
-	eval "$4=$exitCode"	
+	eval "$4='$exitCode'"	
 }
 
 function getTestsFrom() {
@@ -92,9 +100,9 @@ function getTestsFrom() {
 		else
 			es_tests="${es_tests} $testClass"
 		fi		
-		echo $testClass
+		debug "Test found: $testClass"
 	done
-	
+	debug "EvoSuite tests: ${es_tests}"
 	local all_tests="$es_tests"
 	eval "$2='$all_tests'"
 	IFS="$backupIFS"
@@ -104,34 +112,98 @@ function getTestsFrom() {
 #classpath	: the classpath to use
 #testpath	: the classpath to tests
 #sourcefiles	: the source files of classes to cover
+#classfiles	: where the class files are located (e.g.: bin/ classes/ build/)
 #tests		: tests to run
 #classToAnalyze	: the class to analyze
 function jacoco() {
-	echo "Running JaCoCo..."
+	infoMessage "Running JaCoCo..."
 	local classpath="$1"
 	local testpath="$2"
 	local sourcefiles="$3"
-	local tests="$4"
-	local classToAnalyze="$5"
+	local classfiles="$4"
+	local tests="$5"
+	local classToAnalyze="$6"
 	local classToAnalyzeAsPath=$(echo "$classToAnalyze" | sed 's|\.|/|g')
-	java -javaagent:"$JACOCO_AGENT" -cp "$classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$TESTING_JARS_RD" org.junit.runner.JUnitCore $tests
-	[[ "$?" -ne "0" ]] && exit 501
-	java -jar "$JACOCO_CLI" report "jacoco.exec" --classfiles "${classpath}${classToAnalyzeAsPath}.class" --sourcefiles "${sourcefiles}${classToAnalyzeAsPath}.java" --xml "jacoco.report.xml"
-	[[ "$?" -ne "0" ]] && exit 502
+	local fullPathToClassToAnalize=""
+	local fullPathToSourceOfClassToAnalize=""
+	appendPaths "$classfiles" "${classToAnalyzeAsPath}.class" 0 fullPathToClassToAnalize
+	appendPaths "$sourcefiles" "${classToAnalyzeAsPath}.java" 0 fullPathToSourceOfClassToAnalize
+	if [[ "$USE_OFFLINE_INSTRUMENTATION" -eq "1" ]]; then
+		infoMessage "Using offline instrumentation approach"
+		local classToAnalizePackage=$(dirname "${classToAnalyzeAsPath}.java")
+		local instrumentationDestination=""
+		appendPaths "$OFFLINE_INSTR_DIR_LOCATION" "$classToAnalizePackage" "0" instrumentationDestination
+		debug "Running cmd: java -jar $JACOCO_CLI instrument $fullPathToClassToAnalize --dest $instrumentationDestination"
+		java -jar "$JACOCO_CLI" instrument "$fullPathToClassToAnalize" --dest "$instrumentationDestination"
+		exitCode="$?"
+		debug "Exit code: $exitCode"
+		if [[ "$exitCode" -ne "0" ]]; then
+			error "JaCoCo instrumentation failed (${exitCode})" 501
+		fi
+		debug "Deactivating original file $fullPathToClassToAnalize"
+		mv "$fullPathToClassToAnalize" "${fullPathToClassToAnalize}.bak"
+		exitCode="$?"
+		if [[ "$exitCode" -ne "0" ]]; then
+			error "Deactivating original file failed (${exitCode})" 502
+		fi
+		debug "Running tests with instrumented class"
+		debug "Running cmd: java -cp $classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT -Djacoco-agent.destfile=${OFFLINE_EXEC_FILE_LOCATION} org.junit.runner.JUnitCore $tests"
+		java -cp "$classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT:$OFFLINE_INSTR_DIR_LOCATION" -Djacoco-agent.destfile=${OFFLINE_EXEC_FILE_LOCATION} org.junit.runner.JUnitCore $tests
+		exitCode="$?"
+		debug "Restoring original file $fullPathToClassToAnalize"
+		mv "${fullPathToClassToAnalize}.bak" "$fullPathToClassToAnalize"
+		exitCodeMv="$?"
+		if [[ "$exitCodeMv" -ne "0" ]]; then
+			error "Restoring original file failed (${exitCodeMv}) tests may have also failed if the following is not 0 ($exitCode)" 503
+		fi
+		if [[ "$exitCode" -ne "0" ]]; then
+			error "Failed to run tests with instrumented class (${exitCode})" 504
+		fi
+	else
+		infoMessage "Using Java Agent approach"
+		debug "Running cmd: java -javaagent: $JACOCO_AGENT -cp $classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES org.junit.runner.JUnitCore $tests"
+		java -javaagent:"$JACOCO_AGENT" -cp "$classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES" org.junit.runner.JUnitCore $tests
+		exitCode="$?"
+		if [[ "$exitCode" -ne "0" ]]; then
+		 error "Failed to run tests with JaCoCo agent (${exitCode})" 501
+		fi
+	fi
+	debug "All tests executed, generating JaCoCo raw report"
+	debug "Running cmd: java -jar $JACOCO_CLI report jacoco.exec --classfiles $fullPathToClassToAnalize --sourcefiles $fullPathToSourceOfClassToAnalize --xml jacoco.report.xml"
+	java -jar "$JACOCO_CLI" report "jacoco.exec" --classfiles "$fullPathToClassToAnalize" --sourcefiles "$fullPathToSourceOfClassToAnalize" --xml "jacoco.report.xml"
+	exitCode="$?"
+	if [[ "$exitCode" -ne "0" ]]; then
+		error "Error generating JaCoCo raw report (${exitCode})" 505
+	fi
 	sed -i 's;<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">;;g' "jacoco.report.xml"
+	debug "Generating resumed JaCoCo report (saving to file jacoco.report.resumed)"
 	$JACOCO_REPORT "jacoco.report.xml" --class "$classToAnalyze" >"jacoco.report.resumed"
 }
 
 
-
 function prepareTestsForJacoco() {
-	echo "Preparing tests for JaCoCo..."
-	local from="$1"
-	find "$from" | awk '/\.java/' | xargs -I {} grep -l "separateClassLoader = true," {} | xargs -I {} sed -i "s|separateClassLoader = true,|separateClassLoader = false,|g" {}
-	[[ "$?" -ne "0" ]] && exit 503
+	infoMessage "Preparing tests for JaCoCo..."
+	if [[ "$USE_OFFLINE_INSTRUMENTATION" -eq "1" ]]; then
+		infoMessage "Using offline instrumentation, tests will be left intact"
+	else
+		local from="$1"
+		find "$from" | awk '/\.java/' | xargs -I {} grep -l "separateClassLoader = true," {} | xargs -I {} sed -i "s|separateClassLoader = true,|separateClassLoader = false,|g" {}
+		exitCode="$?"
+		if [[ "$exitCode" -ne "0" ]]; then
+			error "An error ocurred while preparing tests for JaCoCo" 500
+		fi
+	fi
 }
 
 #MAIN
+if [[ "$USE_OFFLINE_INSTRUMENTATION" -eq "1" ]]; then
+	if [[ -d "$OFFLINE_INSTR_DIR_LOCATION" ]] && [ ! -z "$(ls -A $OFFLINE_INSTR_DIR_LOCATION)" ]; then
+		error "Directory $USE_OFFLINE_INSTRUMENTATION exists and is not empty" 101
+	elif [[ ! -d "$OFFLINE_INSTR_DIR_LOCATION" ]]; then
+		debug "Generating offline instrumentation folder ($OFFLINE_INSTR_DIR_LOCATION)"
+		mkdir "$OFFLINE_INSTR_DIR_LOCATION"
+	fi
+fi
 #TIMES
 evosuiteTime=""
 ############################################################################################################
@@ -141,17 +213,21 @@ evosuiteTime=""
 START=$(date +%s.%N)
 evosuite "$classname" "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "$evoCriterion" "$budget" "$seed"
 ecode="$?"
-[[ "$ecode" -ne "0" ]] && exit 201
+if [[ "$ecode" -ne "0" ]]; then
+	error "EvoSuite failed ($ecode)" 201
+fi
 END=$(date +%s.%N)
 evosuiteTime=$(echo "$END - $START" | bc)
-echo "EvoSuite took $evosuiteTime"
+infoMessage "EvoSuite took $evosuiteTime"
 
 prepareTestsForJacoco "${CURRENT_DIR}/$testDir"
 compileEvosuiteTests "$classnameAsPath${ES_JUNIT_SUFFIX}.java" "${CURRENT_DIR}/${testDir}" "${CURRENT_DIR}/${binDir}:${CURRENT_DIR}/${testDir}" ecode
-[[ "$ecode" -ne "0" ]] && exit 301
+if [[ "$ecode" -ne "0" ]]; then
+	error "EvoSuite tests compilation failed ($ecode)" 301
+fi
 
 tests=""
 getTestsFrom "${CURRENT_DIR}/$testDir" tests
 
 #COVERAGE
-jacoco "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "${CURRENT_DIR}/$sourceDir" "$tests" "$classname"
+jacoco "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "${CURRENT_DIR}/$sourceDir" "${CURRENT_DIR}/$binDir" "$tests" "$classname"

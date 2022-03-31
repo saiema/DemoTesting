@@ -6,4 +6,5 @@ if [ -e "tests" ]; then
 	ls | xargs -I {} rm -rf {}
 	popd
 fi
+[ -e "instrumentedCode" ] && rm -rf "instrumentedCode"
 rm jacoco.*

@@ -5,45 +5,7 @@ DEBUG=1
 
 #set -x #Comment to disable debug output of this script (this is a full verbosity mode; you should use the debug functionality from utils.sh instead)
 
-getoptWorks=""
-checkGetopt getoptWorks
-if [[ "$getoptWorks" -eq "0" ]]; then
-    debug "getopt is working"
-else
-    error "getopt command is not working, please check that getopt is installed and available" 1
-fi
-
-LONGOPTIONS=targetClassname:,sourceDir:,binDir:,testDir:,classpath:,configFile:,help
-OPTIONS=t:,s:,b:,e:,c:,f:,h
-
-#Display script usage
-#error : if 0 the usage comes from normal behaviour, if > 0 then it comes from an error and will exit with this as exit code
-function usage() {
-    local code="$1"
-    local msg="Runs EvoSuite for a particular class and a given configuration for EvoSuite, then it runs JaCoCo to meassure line and branch coverage.\nUsage:\nrunEvoSuite.sh -[-h]elp to show this message\nrunEvoSuite.sh -[-t]argetClassname <target> -[-s]ourceDir <path> -[-b]inDir <path> -[-]t[e]stDir <path> -[-c]lasspath <paths> -[-]con[f]igFile <path>\n\tTarget class is a full classname.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig)."
-    if [[ "$code" -eq "0" ]]; then
-        infoMessage "$msg"
-        exit 0
-    else
-        error "Wrong usage\n$msg" "$code"
-    fi
-}
-
 #Arguments
-classname=""
-classnameSet=0
-sourceDir=""
-sourceDirSet=0
-binDir=""
-binDirSet=0
-testDir=""
-testDirSet=0
-additionalClasspath=""
-additionalClasspathSet=0
-
-
-
-
 example="$1"
 if [ "$example" == "bad" ]; then
 	classname="motivating.queue.BadQueue"

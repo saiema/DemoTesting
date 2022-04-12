@@ -70,7 +70,7 @@ function error() {
 #key,value separator            : Which symbol is used to relate keys with values (can't use or contain spaces)
 #separator replacement          : What symbol to use as key, value separator in the resulting string (can be space)
 #comment symbol                 : What symbol to use as comments, line starting with this symbol will be ignored (can't be or contains spaces)
-#comment secondary symbol       : A secondary symbol to use as comments, line starting with this symbol will be also ignored (can't be or contains spaces)
+#initial symbol or regex to use : A starting symbol or regex that defines what key,value pairs to extract (can't be or contains spaces)
 #symbol to prepend in result    : A symbol to prepend for each parsed key, value pair in the result (can't be or contains spaces)
 #result(R)                      : Where to store the result
 function parseFromConfigFile() {
@@ -78,15 +78,21 @@ function parseFromConfigFile() {
     local kvSep="$2"
     local kvSepRep="$3"
     local ignSym="$4"
-    local ignSymSnd="$5"
+    local stSymOrRgx="$5"
     local prependSym="$6"
     local result=""
     [ ! -e "$cfile" ] && error "Config file $cfile does not exist" 1
-    [ -z "$kvSep" ] || $(echo "$kvSep" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains only spaces" 2
-    [ -z "$ignSym" ] || $(echo "$ignSym" | egrep -q "[[:space:]]") && error "Comment symbol is empty or contains only spaces" 3
-    [ -z "$ignSymSnd" ] || $(echo "$ignSymSnd" | egrep -q "[[:space:]]") && error "Comment secondary symbol is empty or contains only spaces" 4
-    [ -z "$prependSym" ] || $(echo "$prependSym" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains only spaces" 5
-    #TODO: complete implementation
+    [ -z "$kvSep" ] || $(echo "$kvSep" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains spaces" 2
+    [ -z "$ignSym" ] || $(echo "$ignSym" | egrep -q "[[:space:]]") && error "Comment symbol is empty or contains spaces" 3
+    [ -z "$stSymOrRgx" ] || $(echo "$stSymOrRgx" | egrep -q "[[:space:]]") && error "Starting symbol or regex for key,value pairs to extract is empty or contains spaces" 4
+    [ -z "$prependSym" ] || $(echo "$prependSym" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains spaces" 5
+    for keyVal in `grep -vE "^((${ignSym})|([[:space:]]))" ${cfile}`; do
+        if echo "$keyVal" | grep -qE "^${stSymOrRgx}([[:alnum:]])*${kvSep}([[:alnum:]])+"; then
+            newKeyValuePair=$(echo "$keyVal" | sed "s|${kvSep}|${kvSepRep}|g")
+            append "$result" "${prependSym}${newKeyValuePair}" " " result
+        fi
+    done
+    eval "$7='$result'"
 }
 
 #Appends two strings with a provided separator

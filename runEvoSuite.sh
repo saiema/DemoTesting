@@ -29,6 +29,16 @@ function usage() {
     fi
 }
 
+evoArguments=""
+evoProperties=""
+parseFromConfigFile "test.evoconfig" "=" " " "#" "[[:lower:]]" "--" evoArguments
+parseFromConfigFile "test.evoconfig" "=" "=" "#" "D" "-" evoProperties
+
+echo "evoArguments = $evoArguments"
+echo "evoProperties = $evoProperties"
+
+exit 0
+
 #Arguments
 classname=""
 classnameSet=0

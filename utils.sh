@@ -64,11 +64,42 @@ function error() {
 	exit $ecode
 }
 
+#From a {key, value} config file, this function will return a string with all parsed configurations.
+#This function can result in an error call 
+#config file                    : The configuration file
+#key,value separator            : Which symbol is used to relate keys with values (can't use or contain spaces)
+#separator replacement          : What symbol to use as key, value separator in the resulting string (can be space)
+#comment symbol                 : What symbol to use as comments, line starting with this symbol will be ignored (can't be or contains spaces)
+#initial symbol or regex to use : A starting symbol or regex that defines what key,value pairs to extract (can't be or contains spaces)
+#symbol to prepend in result    : A symbol to prepend for each parsed key, value pair in the result (can't be or contains spaces)
+#result(R)                      : Where to store the result
+function parseFromConfigFile() {
+    local cfile="$1"
+    local kvSep="$2"
+    local kvSepRep="$3"
+    local ignSym="$4"
+    local stSymOrRgx="$5"
+    local prependSym="$6"
+    local result=""
+    [ ! -e "$cfile" ] && error "Config file $cfile does not exist" 1
+    [ -z "$kvSep" ] || $(echo "$kvSep" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains spaces" 2
+    [ -z "$ignSym" ] || $(echo "$ignSym" | egrep -q "[[:space:]]") && error "Comment symbol is empty or contains spaces" 3
+    [ -z "$stSymOrRgx" ] || $(echo "$stSymOrRgx" | egrep -q "[[:space:]]") && error "Starting symbol or regex for key,value pairs to extract is empty or contains spaces" 4
+    [ -z "$prependSym" ] || $(echo "$prependSym" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains spaces" 5
+    for keyVal in `grep -vE "^((${ignSym})|([[:space:]]))" ${cfile}`; do
+        if echo "$keyVal" | grep -qE "^${stSymOrRgx}([[:graph:]])*${kvSep}([[:graph:]])+"; then
+            newKeyValuePair=$(echo "$keyVal" | sed "s|${kvSep}|${kvSepRep}|g")
+            append "$result" "${prependSym}${newKeyValuePair}" " " result
+        fi
+    done
+    eval "$7='$result'"
+}
+
 #Appends two strings with a provided separator
 #a		      :	first string
 #b		      :	second string
-#separator	      :	separator to use
-#result(R)	      :	where to store the result
+#separator	  :	separator to use
+#result(R)	  :	where to store the result
 function append() {
 	local a="$1"
 	local b="$2"
@@ -85,8 +116,8 @@ function append() {
 #Appends two paths
 #a		            : first path
 #b		            : second path
-#endWithPathSep		    : if the resulting path should be ended with a path separator or not (0: false, >0: true)
-#result(R)	      	    : where to store the result
+#endWithPathSep		: if the resulting path should be ended with a path separator or not (0: false, >0: true)
+#result(R)	      	: where to store the result
 function appendPaths() {
 	local first=$(echo "$1" | sed "s|\/$||g" )
 	local second=$(echo "$2" | sed "s|\/$||g" )
@@ -108,7 +139,7 @@ function appendPaths() {
 
 #Prepends a given path (treated as directory) to a list of paths
 #paths			: the list of paths
-#pathToPrepend		: the path to prepend
+#pathToPrepend  : the path to prepend
 #separator		: path separator
 #result(R)		: the list of paths with the path prepended
 function prependDirectoryToPaths() {
@@ -126,4 +157,15 @@ function prependDirectoryToPaths() {
 		fi
 	done
 	eval "$4='$resultPaths'"
+}
+
+#Checks whether getopt works
+#result(R)  : where to store the result, 0 for success, 1 for failure.
+function checkGetopt() {
+    local ecode=0
+    getopt --test > /dev/null
+    if [[ $? -ne 4 ]]; then
+        ecode=1
+    fi
+    eval "$1='$ecode'"
 }

@@ -1,0 +1,10 @@
+#this is a comment
+#dummyKey=dummyVal
+key1=val1
+key2=val2
+Dkey1=dval1
+key3=val3
+DKey2=dval2
+#comment
+
+#the line above should also be avoided

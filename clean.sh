@@ -7,4 +7,4 @@ if [ -e "tests" ]; then
 	popd
 fi
 [ -e "instrumentedCode" ] && rm -rf "instrumentedCode"
-rm jacoco.*
+[ ! -z  "$(find . -name "jacoco.*")" ] && rm jacoco.*

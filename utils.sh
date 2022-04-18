@@ -87,7 +87,7 @@ function parseFromConfigFile() {
     [ -z "$stSymOrRgx" ] || $(echo "$stSymOrRgx" | egrep -q "[[:space:]]") && error "Starting symbol or regex for key,value pairs to extract is empty or contains spaces" 4
     [ -z "$prependSym" ] || $(echo "$prependSym" | egrep -q "[[:space:]]") && error "key,value separator is empty or contains spaces" 5
     for keyVal in `grep -vE "^((${ignSym})|([[:space:]]))" ${cfile}`; do
-        if echo "$keyVal" | grep -qE "^${stSymOrRgx}([[:alnum:]])*${kvSep}([[:alnum:]])+"; then
+        if echo "$keyVal" | grep -qE "^${stSymOrRgx}([[:graph:]])*${kvSep}([[:graph:]])+"; then
             newKeyValuePair=$(echo "$keyVal" | sed "s|${kvSep}|${kvSepRep}|g")
             append "$result" "${prependSym}${newKeyValuePair}" " " result
         fi

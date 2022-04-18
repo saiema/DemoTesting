@@ -21,17 +21,17 @@ OPTIONS=t:,s:,b:,e:,c:,f:,h
 #extra information : an additional message
 function usage() {
     local code="$1"
-    local additionalMsg="$2"
+    local extraMsg="$2"
     local msg="Runs EvoSuite for a particular class and a given configuration for EvoSuite, then it runs JaCoCo to meassure line and branch coverage.\nUsage:\nrunEvoSuite.sh -[-h]elp to show this message\nrunEvoSuite.sh -[-t]argetClassname <target> -[-s]ourceDir <path> -[-b]inDir <path> -[-]t[e]stDir <path> -[-c]lasspath <paths> -[-]con[f]igFile <path>\n\tTarget class is a full classname.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig)."
     if [[ "$code" -eq "0" ]]; then
-        [ ! -z "$additionalMsg" ] && infoMessage "$additionalMsg"
+        [ ! -z "$extraMsg" ] && infoMessage "$extraMsg"
         infoMessage "$msg"
         exit 0
     else
-        if [ -z "$additonalMsg" ]; then
+        if [ -z "$extraMsg" ]; then
             error "Wrong usage\n$msg" "$code"
         else
-            error "Wrong usage\n${additionalMsg}\n$msg" "$code"
+            error "Wrong usage\n${extraMsg}\n$msg" "$code"
         fi
     fi
 }
@@ -51,6 +51,25 @@ additionalClasspathSet=0
 configFile=""
 configFileSet=0
 
+PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
+getoptExitCode="$?"
+if [[ "$getoptExitCode" -ne "0" ]]; then
+    error "Error while parsing arguments ($getoptExitCode)" 1
+fi
+
+eval set -- "$PARSED"
+
+classnameSet=0
+sourceDir=""
+sourceDirSet=0
+binDir=""
+binDirSet=0
+testDir=""
+testDirSet=0
+additionalClasspath=""
+additionalClasspathSet=0
+configFile=""
+configFileSet=0
 
 while true; do
 	case "$1" in
@@ -89,7 +108,7 @@ while true; do
 			shift 2
 		;;
 		--configFile | -f)
-			additionalClasspath="$2"
+			configFile="$2"
 			[ -z "$configFile" ] || $(echo "$configFile" | egrep -q "^[[:space:]]+$") && error "config file path (${configFile}) is empty or contains only spaces" 7
             $(echo "$configFile" | egrep -qv ".*\.evoconfig$") && error "config file ($configFile) does not have extension '.evoconfig'" 7
             [ ! -f "$configFile" ] && error "config file (${configFile}) does not exists" 7
@@ -110,19 +129,6 @@ while true; do
 	esac
 done
 
-
-classnameSet=0
-sourceDir=""
-sourceDirSet=0
-binDir=""
-binDirSet=0
-testDir=""
-testDirSet=0
-additionalClasspath=""
-additionalClasspathSet=0
-configFile=""
-configFileSet=0
-
 [[ "$classnameSet" -ne "1" ]] && usage 8 "Classname was not set"
 [[ "$sourceDirSet" -ne "1" ]] && usage 8 "Source directory was not set"
 if [[ "$binDirSet" -ne "1" ]]; then
@@ -140,8 +146,10 @@ evoArguments=""
 evoProperties=""
 parseFromConfigFile "${configFile}" "=" " " "#" "[[:lower:]]" "--" evoArguments
 parseFromConfigFile "${configFile}" "=" "=" "#" "D" "-" evoProperties
+evosuiteArguments=""
+append "$evoArguments" "$evoProperties" " " evosuiteArguments
 
-debug "EvoSuite configuration parsed\nArguments: ${evoArguments}\nProperties: ${evoProperties}"
+debug "EvoSuite configuration parsed\nArguments: ${evoArguments}\nProperties: ${evoProperties}\nEvoSuite all arguments: ${evosuiteArguments}"
 
 classnameAsPath=$(echo "$classname" | sed 's;\.;/;g')
 #
@@ -289,7 +297,7 @@ function jacoco() {
 		error "Error generating JaCoCo raw report (${exitCode})" 505
 	fi
 	sed -i 's;<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">;;g' "jacoco.report.xml"
-	debug "Generating resumed JaCoCo report (saving to file jacoco.report.resumed)"
+	infoMessage "Generating resumed JaCoCo report (saving to file jacoco.report.resumed)"
 	$JACOCO_REPORT "jacoco.report.xml" --class "$classToAnalyze" >"jacoco.report.resumed"
 }
 
@@ -324,7 +332,7 @@ evosuiteTime=""
 
 
 START=$(date +%s.%N)
-evosuite "$classname" "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "$evoCriterion" "$budget" "$seed"
+evosuite "$classname" "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "$evosuiteArguments"
 ecode="$?"
 if [[ "$ecode" -ne "0" ]]; then
 	error "EvoSuite failed ($ecode)" 201

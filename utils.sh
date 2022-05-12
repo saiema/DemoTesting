@@ -23,33 +23,33 @@
 #arguments: 3 + Result, two paths and a boolean stating if the path should end with a path separator, the last argument is a result (must be just a name, do not use $)
 #similar to append but using `/` as a path separator
 
-
+#set -x
 DEBUG=0
+
+COLOR_GREEN=$(tput setaf 2)
+COLOR_BLUE=$(tput setaf 4)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_RED=$(tput setaf 1)
+COLOR_NORMAL=$(tput sgr0)
 
 #Prints message (in green)
 #msg	: the message to print
 function infoMessage() {
 	local msg="$1"
-	tput setaf 2
-	echo -e "INFO:$msg"
-	tput sgr0
+	printf "${COLOR_GREEN}INFO:%s\n${COLOR_NORMAL}" "$msg"
 }
 
 #Prints message (in blue) if DEBUG != 0
 #msg	: the message to print
 function debug() {
 	local msg="$1"
-	tput setaf 4
-	[[ "$DEBUG" -ne "0" ]] && echo -e "DEBUG:$msg"
-	tput sgr0
+	[[ "$DEBUG" -ne "0" ]] && printf "${COLOR_BLUE}DEBUG:%s\n${COLOR_NORMAL}" "$msg"
 }
 
 #Prints a warning message (in yellow)
 function warning() {
 	local msg="$1"
-	tput setaf 3
-	echo -e "WARNING:$msg"
-	tput sgr0
+	printf "${COLOR_YELLOW}WARNING:%s\n${COLOR_NORMAL}" "$msg"
 }
 
 #Prints an error message (in red) and then exits with a provided exit code
@@ -58,9 +58,7 @@ function warning() {
 function error() {
 	local msg="$1"
 	local ecode="$2"
-	tput setaf 1
-	echo -e "ERROR:$msg"
-	tput sgr0
+	printf "${COLOR_RED}ERROR:%s\n${COLOR_NORMAL}" "$msg"
 	exit $ecode
 }
 

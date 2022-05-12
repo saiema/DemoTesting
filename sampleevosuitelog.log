@@ -1,0 +1,40 @@
+* EvoSuite 1.1.1-SNAPSHOT
+* Going to generate test cases for class: motivating.queue.Queue
+* Starting Client-0
+* Connecting to master process on port 20771
+* Analyzing classpath: 
+  - benchmarks/bin/
+* Finished analyzing classpath
+* Generating tests for class motivating.queue.Queue
+* Test criteria:
+ - Field Values Coverage
+  - Branch Coverage
+* Setting up search algorithm for whole suite generation
+* Total number of test goals: 
+  - Field 0
+  - Branch 32
+[Progress:>                             0%] [Cov:>                                  0%]* Using seed 42
+* Starting evolution
+[Progress:==============================100%] [Cov:===============================>   90%]
+* Search finished after 11s and 48 generations, 22570 statements, best individual has fitness: 3.168442865600947
+[MASTER] 16:36:33.051 [logback-1] WARN  TimeController - Phase SEARCH lasted too long, 1 seconds more than allowed.
+* Minimizing test suite
+* Going to analyze the coverage criteria
+* Coverage analysis for criterion FIELD
+* Coverage of criterion FIELD: 99%
+* Total number of goals: 562
+* Number of covered goals: 556
+* Coverage analysis for criterion BRANCH
+* Coverage of criterion BRANCH: 81%
+* Total number of goals: 32
+* Number of covered goals: 26
+* Generated 251 tests with total length 1187
+* Resulting test suite's coverage: 91% (average coverage for all fitness functions)
+* Generating assertions
+* Resulting test suite's mutation score: 86%
+* Compiling and checking tests
+* Writing tests to file
+* Writing JUnit test case 'QueueESTest' to evosuite-tests
+* Done!
+
+* Computation finished

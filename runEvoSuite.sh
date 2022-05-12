@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source utils.sh
+source runEvoSuite_configuration.sh
 DEBUG=1
 
 #set -x #Comment to disable debug output of this script (this is a full verbosity mode; you should use the debug functionality from utils.sh instead)
@@ -152,24 +153,8 @@ append "$evoArguments" "$evoProperties" " " evosuiteArguments
 debug "EvoSuite configuration parsed\nArguments: ${evoArguments}\nProperties: ${evoProperties}\nEvoSuite all arguments: ${evosuiteArguments}"
 
 classnameAsPath=$(echo "$classname" | sed 's;\.;/;g')
-#
-#Constants
-CURRENT_DIR=$(pwd)
-#JUNIT AND EVOSUITE
-EVOSUITE_JAR="${CURRENT_DIR}/tools/evosuite/evosuite-1.0.6.jar"
-JUNIT="${CURRENT_DIR}/tools/junit-4.12.jar"
-HAMCREST="${CURRENT_DIR}/tools/org.hamcrest.core_1.3.0.v201303031735.jar"
-TESTING_JARS_ES="${CURRENT_DIR}/tools/evosuite/evosuite-standalone-runtime-1.0.6.jar"
-ES_JUNIT_SUFFIX="ESTest"	#EvoSuite test suffix
-#JACOCO
-USE_OFFLINE_INSTRUMENTATION=1 #0 : do not use offline instrumentation; 1 : use offline instrumentation
-OFFLINE_EXEC_FILE_LOCATION="jacoco.exec"
-OFFLINE_INSTR_DIR_LOCATION="instrumentedCode"
-JACOCO_AGENT="JaCoCoRS/jacocoagent.jar"
-JACOCO_CLI="JaCoCoRS/jacococli.jar"
-JACOCO_REPORT="JaCoCoRS/JaCoCoRS.sh"
-#
-########################################################################
+
+#############################################################################################################################################
 
 #Runs evosuite for the given arguments:
 #class 			: class for which to generate tests
@@ -184,7 +169,7 @@ function evosuite() {
 	local outputDir="$3"
 	local argumentsAndProperties="$4"
 	debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX ${argumentsAndProperties}"
-	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" ${argumentsAndProperties}
+	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" ${argumentsAndProperties} 2>&1 | tee -a evosuite.log
 }
 
 #Compiles evosuite generated tests

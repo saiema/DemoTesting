@@ -3,10 +3,16 @@
 #DO NOT ADD SPACES BETWEEN KEY AND =, = AND VALUE
 #Arguments (criterion, seed, etc)
 
-criterion=branch:weakmutation
+criterion=FIELD
 seed=42
 
 #Properties (search_budget, junit_suffix, etc)
 #Important note: do not add the following properties, they are set within the script `Dtest_dir` and `Djunit_suffix`
 
-Dsearch_budget=10
+Dsearch_budget=300
+Dalgorithm=MONOTONIC_GA
+Dstopping_condition=MaxTime
+Dminimize=true
+
+
+#EXTRA NOTE: EvoSuite FB should be run with these options: "-generateSuite", "-Dalgorithm=MONOTONIC_GA", "-Dsearch_budget=10", "-Dstopping_condition=MaxTime", "-Dminimize=true" ,"-class", targetClass

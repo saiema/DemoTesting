@@ -32,33 +32,82 @@ COLOR_YELLOW=$(tput setaf 3)
 COLOR_RED=$(tput setaf 1)
 COLOR_NORMAL=$(tput sgr0)
 
+
 #Prints message (in green)
 #msg	: the message to print
 function infoMessage() {
+	infoMessageF "$1" 0
+}
+
+#Prints message (in green)
+#msg	: the message to print
+#raw    : print the message raw
+function infoMessageF() {
 	local msg="$1"
-	printf "${COLOR_GREEN}INFO:%s\n${COLOR_NORMAL}" "$msg"
+	local raw="$2"
+	if [[ "$raw" -eq "0" ]]; then
+	    printf "${COLOR_GREEN}INFO:$msg\n${COLOR_NORMAL}"
+	else
+	    printf "${COLOR_GREEN}INFO:%s\n${COLOR_NORMAL}" "$msg"
+	fi
 }
 
 #Prints message (in blue) if DEBUG != 0
 #msg	: the message to print
 function debug() {
+	debugF "$1" 0
+}
+
+#Prints message (in blue) if DEBUG != 0
+#msg	: the message to print
+#raw    : print the message raw
+function debugF() {
 	local msg="$1"
-	[[ "$DEBUG" -ne "0" ]] && printf "${COLOR_BLUE}DEBUG:%s\n${COLOR_NORMAL}" "$msg"
+	local raw="$2"
+	if [[ "$raw" -eq "0" ]]; then
+	    [[ "$DEBUG" -ne "0" ]] && printf "${COLOR_BLUE}DEBUG:$msg\n${COLOR_NORMAL}"
+	else
+	    [[ "$DEBUG" -ne "0" ]] && printf "${COLOR_BLUE}DEBUG:%s\n${COLOR_NORMAL}" "$msg"
+	fi
 }
 
 #Prints a warning message (in yellow)
 function warning() {
+	warningF "$1" 0
+}
+
+#Prints a warning message (in yellow)
+#raw    : print the message raw
+function warningF() {
 	local msg="$1"
-	printf "${COLOR_YELLOW}WARNING:%s\n${COLOR_NORMAL}" "$msg"
+	local raw="$2"
+	if [[ "$raw" -eq "0" ]]; then
+	    printf "${COLOR_YELLOW}WARNING:$msg\n${COLOR_NORMAL}"
+	else
+	    printf "${COLOR_YELLOW}WARNING:%s\n${COLOR_NORMAL}" "$msg"
+	fi
 }
 
 #Prints an error message (in red) and then exits with a provided exit code
 #msg	   : the message to print
 #ecode	   : the exit code
 function error() {
+	errorF "$1" "$2" 0
+}
+
+#Prints an error message (in red) and then exits with a provided exit code
+#msg	   : the message to print
+#ecode	   : the exit code
+#raw    : print the message raw
+function errorF() {
 	local msg="$1"
 	local ecode="$2"
-	printf "${COLOR_RED}ERROR:%s\n${COLOR_NORMAL}" "$msg"
+	local raw="$3"
+	if [[ "$raw" -eq "0" ]]; then
+	    printf "${COLOR_RED}ERROR:$msg\n${COLOR_NORMAL}"
+	else
+	    printf "${COLOR_RED}ERROR:%s\n${COLOR_NORMAL}" "$msg"
+	fi
 	exit $ecode
 }
 
@@ -91,6 +140,33 @@ function parseFromConfigFile() {
         fi
     done
     eval "$7='$result'"
+}
+
+#Given a file, a regular expression, and a not found value
+#This function will return either the value associated with the regular expression, or the not found value
+#Example: getValue "log" "Following this is the value \K[[:digit:]]+" "N/A" will return:
+#       *   if log has a line with "Following this is the value 42", it will return 42
+#       *   if not, it will return "N/A"
+#Arguments
+#ilogFile       : the log file where to look for expressions
+#gexpt          : the regular expression to look
+#notFoundValue  : the value to return when the regular expresion has no matches
+#result(R)      : where to store the result
+function getValue() {
+    local ilogFile="$1"
+    local gexp="$2"
+    local notFoundValue="$3"
+    local foundExpression=$(grep -oP "$gexp" "$ilogFile")
+    if [ -z "$foundExpression" ]; then
+        foundExpression="$notFoundValue"
+    else
+        local result=""
+        for match in $foundExpression; do
+            append "$result" "$match" "-" result
+        done
+        foundExpression="$result"
+    fi
+    eval "$4='$foundExpression'"
 }
 
 #Appends two strings with a provided separator

@@ -23,37 +23,6 @@ TESTS_GEXP="Generated \K[[:digit:]]+(?= tests with total length [[:digit:]]+)"
 AVERAGE_COVERAGE_GEXP="Resulting test suite's coverage: \K[[:digit:]]+%(?= \(average coverage for all fitness functions\))"
 MSCORE_GEXP="Resulting test suite's mutation score: \K[[:digit:]]+%"
 
-#Given a log file, and regular expression, and a not found value
-#This function will return either the value associated with the regular expression, or the not found value
-#Example: getValue "log" "Following this is the value \K[[:digit:]]+" "N/A" will return:
-#if log has a line with "Following this is the value 42", it will return 42
-#if not, it will return "N/A"
-#Arguments
-#ilogFile       : the log file where to look for expressions
-#gexpt          : the regular expression to look
-#notFoundValue  : the value to return when the regular expresion has no matches
-#result(R)      : where to store the result
-function getValue() {
-    local ilogFile="$1"
-    local gexp="$2"
-    local notFoundValue="$3"
-    local foundExpression=$(grep -oP "$gexp" "$ilogFile")
-    debug "Searching values from ${ilogFile} using ${gexp} regex and ${notFoundValue} as not-found-value\nRaw result: ${foundExpression}"
-    if [ -z "$foundExpression" ]; then
-        debug "returning not-found-value"
-        foundExpression="$notFoundValue"
-    else
-        local result=""
-        for match in $foundExpression; do
-            debug "match found: $match"
-            append "$result" "$match" "-" result
-        done
-        debug "returning $result"
-        foundExpression="$result"
-    fi
-    eval "$4='$foundExpression'"
-}
-
 logFile="$1"
 csvFile="$2"
 runID="$3"

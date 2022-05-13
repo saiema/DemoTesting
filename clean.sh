@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source runEvoSuite_configuration.sh
+
 testsFolder="$1"
 
 [ -e "evosuite-report" ] && rm -rf "evosuite-report"
@@ -14,4 +16,4 @@ else
 fi
 [ -e "instrumentedCode" ] && rm -rf "instrumentedCode"
 [ ! -z  "$(find . -name "jacoco.*")" ] && rm jacoco.*
-[ -e "evosuite.log" ] && rm "evosuite.log"
+[ -e "$EVOSUITE_LOG" ] && rm "$EVOSUITE_LOG"

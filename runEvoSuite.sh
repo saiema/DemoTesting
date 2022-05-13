@@ -60,18 +60,6 @@ fi
 
 eval set -- "$PARSED"
 
-classnameSet=0
-sourceDir=""
-sourceDirSet=0
-binDir=""
-binDirSet=0
-testDir=""
-testDirSet=0
-additionalClasspath=""
-additionalClasspathSet=0
-configFile=""
-configFileSet=0
-
 while true; do
 	case "$1" in
 		--targetClassname | -t)

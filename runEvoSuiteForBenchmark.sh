@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source utils.sh
+source runEvoSuite_configuration.sh
 DEBUG=1
 
 getoptWorks=""
@@ -11,8 +12,8 @@ else
     error "getopt command is not working, please check that getopt is installed and available" 1
 fi
 
-LONGOPTIONS=classes:,sourceDir:,binDir:,testDir:,classpath:,configFile:,seedsFile:,runs:,runsPerSeed:,outputFolder:,help
-OPTIONS=c:,s:,b:,t:,p:,f:,e:,r:,u:,o:,h
+LONGOPTIONS=classes:,sourceDir:,binDir:,classpath:,configFile:,seedsFile:,runs:,runsPerSeed:,outputFolder:,help
+OPTIONS=c:,s:,b:,p:,f:,e:,r:,u:,o:,h
 
 #Display script usage
 #error : if 0 the usage comes from normal behaviour, if > 0 then it comes from an error and will exit with this as exit code
@@ -20,7 +21,7 @@ OPTIONS=c:,s:,b:,t:,p:,f:,e:,r:,u:,o:,h
 function usage() {
     local code="$1"
     local extraMsg="$2"
-    local msg="Runs EvoSuite and JaCoCo for a benchmark of classes, and generates a csv file with the results.\nUsage:\nrunEvoSuiteForBenchmark.sh -[-h]elp to show this message\nrunEvoSuiteForBenchmark.sh -[-c]lasses <path> -[-s]ourceDir <path> -[-b]inDir <path> -[-t]estDir <path> -[-]class[p]ath <paths> -[-]con[f]igFile <path> -[-]s[e]edsFile <path> -[-r]uns <nat> -[-]r[u]nsPerSeed <nat> -[-o]utputFolder <path>\n\tClasses is a file with full classnames.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tTests path is where tests will be written to.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig).\n\tThe seeds file must contains numbers (one per each line) to be used as seeds for EvoSuite.\n\tRuns refers to how many runs for each class in the classes file will be run with a different seed, this number must be less or equal than the lines of the seeds file.\n\tRuns per seed is how many times a run for a particular class and seed will be repeated (this can be used if it is suspected that there's still randomness involved in EvoSuite that is not tied with the seed used).\n\tThe output folder is where results will be stored, these include generated tests and reports."
+    local msg="Runs EvoSuite and JaCoCo for a benchmark of classes, and generates a csv file with the results.\nUsage:\nrunEvoSuiteForBenchmark.sh -[-h]elp to show this message\nrunEvoSuiteForBenchmark.sh -[-c]lasses <path> -[-s]ourceDir <path> -[-b]inDir <path> -[-]class[p]ath <paths> -[-]con[f]igFile <path> -[-]s[e]edsFile <path> -[-r]uns <nat> -[-]r[u]nsPerSeed <nat> -[-o]utputFolder <path>\n\tClasses is a file with full classnames.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig).\n\tThe seeds file must contains numbers (one per each line) to be used as seeds for EvoSuite.\n\tRuns refers to how many runs for each class in the classes file will be run with a different seed, this number must be less or equal than the lines of the seeds file.\n\tRuns per seed is how many times a run for a particular class and seed will be repeated (this can be used if it is suspected that there's still randomness involved in EvoSuite that is not tied with the seed used).\n\tThe output folder is where results will be stored, these include generated tests and reports."
     if [[ "$code" -eq "0" ]]; then
         [ ! -z "$extraMsg" ] && infoMessage "$extraMsg"
         infoMessage "$msg"
@@ -42,8 +43,6 @@ sourceDir=""
 sourceDirSet=0
 binDir=""
 binDirSet=0
-testDir=""
-testDirSet=0
 additionalClasspath=""
 additionalClasspathSet=0
 configFile=""
@@ -89,13 +88,6 @@ while true; do
 			binDirSet=1
 			shift 2
 		;;
-		--testDir | -t)
-			testDir="$2"
-			[ -z "$testDir" ] || $(echo "$testDir" | egrep -q "^[[:space:]]+$") && error "tests directory path (${testDir}) is empty or contains only spaces" 5
-			[ -d "$testDir" ] && [ ! -z "$(ls -A ${testDir})" ] && error "tests directory exists and is not empty" 5 
-			testDirSet=1
-			shift 2
-		;;
 		--classpath | -p)
 			additionalClasspath="$2"
 			[ -z "$additionalClasspath" ] || $(echo "$additionalClasspath" | egrep -q "^[[:space:]]+$") && error "additional classpath (${additionalClasspath}) is empty or contains only spaces" 6
@@ -113,25 +105,29 @@ while true; do
 		;;
 		--seedsFile | -e)
 		    seedsFile="$2"
-		    [ -z "$seedsFile" ] || $(echo "$seedsFile" | egrep -q "^[[:space:]]+$") && error "seeds file path (${seedsFile}) is empty or contains only spaces" 7
-            [ ! -f "$seedsFile" ] && error "seeds file (${seedsFile}) does not exists" 7
+		    [ -z "$seedsFile" ] || $(echo "$seedsFile" | egrep -q "^[[:space:]]+$") && error "seeds file path (${seedsFile}) is empty or contains only spaces" 8
+            [ ! -f "$seedsFile" ] && error "seeds file (${seedsFile}) does not exists" 8
 			seedsFileSet=1
-			seeds=$(grep -oE "^[[:digit:]]+$" "$seedsFile" | wc -l)
-			[[ "$seeds" -eq "0" ]] && error "no seeds found in seeds file (${seedsFile})" 7
 			shift 2
 		;;
 		--runs | -r)
 		    runs="$2"
-		    [ -z "$runs" ] || $(echo "$runs" | egrep -qv "^[[:digit:]]+$") && error "runs is not a number (${runs})" 7
-            [[ ! "$runs" -gt "0" ]] && error "runs is not a positive number (${runs})" 7
+		    [ -z "$runs" ] || $(echo "$runs" | egrep -qv "^[[:digit:]]+$") && error "runs is not a number (${runs})" 9
 			runsSet=1
 			shift 2
 		;;
 		--runsPerSeed | -u)
 		    runsPerSeed="$2"
-		    [ -z "$runsPerSeed" ] || $(echo "$runsPerSeed" | egrep -qv "^[[:digit:]]+$") && error "runs per seed is not a number (${runsPerSeed})" 7
-            [[ "$runs" -lt "0" ]] && error "runs per seed is a negative number (${runsPerSeed})" 7
+		    [ -z "$runsPerSeed" ] || $(echo "$runsPerSeed" | egrep -qv "^[[:digit:]]+$") && error "runs per seed is not a number (${runsPerSeed})" 10
+            [[ "$runsPerSeed" -lt "0" ]] && error "runs per seed is a negative number (${runsPerSeed})" 10
 			runsPerSeedSet=1
+			shift 2
+		;;
+		--outputFolder | -o)
+			outputFolder="$2"
+			[ -z "$outputFolder" ] || $(echo "$outputFolder" | egrep -q "^[[:space:]]+$") && error "output directory path (${outputFolder}) is empty or contains only spaces" 11
+			#[ -d "$outputFolder" ] && [ ! -z "$(ls -A ${outputFolder})" ] && error "output directory exists and is not empty" 11
+			outputFolderSet=1
 			shift 2
 		;;
 		--help | -h)
@@ -148,16 +144,74 @@ while true; do
 	esac
 done
 
-[[ "$classnameSet" -ne "1" ]] && usage 8 "Classname was not set"
-[[ "$sourceDirSet" -ne "1" ]] && usage 8 "Source directory was not set"
+[[ "$classesFileSet" -ne "1" ]] && usage 12 "Classes file was not set"
+[[ "$sourceDirSet" -ne "1" ]] && usage 13 "Source directory was not set"
 if [[ "$binDirSet" -ne "1" ]]; then
     binDir="$sourceDir"
     binDirSet=1
     warning "No binary directory set, will be using source directory instead"
 fi
-[[ "$testDirSet" -ne "1" ]] && usage 8 "Tests directory was not set"
 [[ "$additionalClasspathSet" -ne "1" ]] && debug "No additional classpath was set"
-[[ "$configFileSet" -ne "1" ]] && usage 8 "Configuration file was not set"
+[[ "$configFileSet" -ne "1" ]] && usage 15 "Configuration file was not set"
+[[ "$seedsFileSet" -ne "1" ]] && usage 16 "Seeds file was not set"
+seedsAvailable=$(grep -oE "^[[:digit:]]+$" "$seedsFile" | wc -l)
+[[ "$seedsAvailable" -eq "0" ]] && error "no seeds found in seeds file (${seedsFile})" 17
+[[ "$runsSet" -ne "1" ]] && error "Runs was not set" 18
+[[ ! "$runs" -gt "0" ]] && error "runs is not a positive number (${runs})" 19
+if [[ "$runsPerSeedSet" -ne "1" ]]; then
+    debug "No runs per seed was set, this will be set to 1 run per seed"
+    runsPerSeed=1
+fi
+[[ "$outputFolderSet" -ne "1" ]] && error "Output folder was not set" 20
 
+#output structure:
+#
+#|------------Benchmark Folder-----------------------|
+#|                                                   |
+#outputFolder -> classesFileName ->  configFileName -> class -> tests (with tests inside)
+#                                                   |        -> logs
+#                                                   | -> benchmark.csv
 
-classesFile="$1"
+classes=$(grep -oE "^([[:alnum:]]|\.)+$" "$classesFile")
+nclasses=$(grep -oE "^([[:alnum:]]|\.)+$" "$classesFile" | wc -l)
+
+infoMessage "Starting benchmark for ($nclasses) classes\n\tGetting classes from ($classesFile)\n\tUsing config file ($configFile)\n\tGetting seeds ($seedsAvailable) from ($seedsFile)\n\tSaving result to ($outputFolder)"
+
+benchmarkFolder=""
+classesFileBaseName=$(echo "$classesFile" | sed "s|\.[^\.]*$||g")
+configFileBaseName=$(echo "$configFile" | sed "s|\.[^\.]*$||g")
+appendPaths "$outputFolder" "$classesFileBaseName" 1 benchmarkFolder
+appendPaths "$benchmarkFolder" "$configFileBaseName" 1 benchmarkFolder
+benchmarkCsv="benchmark.csv"
+appendPaths "$benchmarkFolder" "$benchmarkCsv" 0 benchmarkCsv
+
+infoMessage "Benchmark output folder will be ($benchmarkFolder)"
+
+mkdir -p $benchmarkFolder
+ecode="$?"
+[[ "$ecode" -ne "0" ]] && error "Failed to create benchmark folder ($benchmarkFolder)" 21
+
+for class in $classes; do
+    testsDir="tests"
+    logsDir="logs"
+    classFolder=""
+    appendPaths "$benchmarkFolder" "$class" 1 classFolder
+    appendPaths "$classFolder" "$testsDir" 1 testsDir
+    appendPaths "$classFolder" "$logsDir" 1 logsDir
+    mkdir -p "$testsDir"
+    ecode="$?"
+    [[ "$ecode" -ne "0" ]] && error "Failed to create tests folder ($testsDir)" 22
+    mkdir -p "$logsDir"
+    ecode="$?"
+    [[ "$ecode" -ne "0" ]] && error "Failed to create logs folder ($logsDir)" 23
+    ./runEvoSuite.sh --targetClassname "$class" -s "$sourceDir" -b "$binDir" --testDir "$testsDir" --classpath "$additionalClasspath" --configFile "$configFile"
+    ecode="$?"
+    [[ "$ecode" -ne "0" ]] && error "runEvoSuite.sh failed ($ecode)" 24
+    [ ! -z  "$(find . -name "jacoco.*")" ] && mv jacoco.* "$logsDir"
+    if [ -e "$EVOSUITE_LOG" ]; then
+        mv "$EVOSUITE_LOG" "$logsDir"
+    else
+        error "$EVOSUITE_LOG not found, this should not be happening" 25
+    fi
+done
+

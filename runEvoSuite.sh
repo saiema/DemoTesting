@@ -9,7 +9,7 @@ DEBUG=1
 getoptWorks=""
 checkGetopt getoptWorks
 if [[ "$getoptWorks" -eq "0" ]]; then
-    debug "getopt is working"
+    debug "getopt is working" 
 else
     error "getopt command is not working, please check that getopt is installed and available" 1
 fi
@@ -157,7 +157,7 @@ function evosuite() {
 	local outputDir="$3"
 	local argumentsAndProperties="$4"
 	debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX ${argumentsAndProperties}"
-	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" ${argumentsAndProperties} 2>&1 | tee -a evosuite.log
+	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
 }
 
 #Compiles evosuite generated tests

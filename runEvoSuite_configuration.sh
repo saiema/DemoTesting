@@ -6,6 +6,7 @@ CURRENT_DIR=$(pwd)
 #EVOSUITE_JAR="${CURRENT_DIR}/tools/evosuite/evosuite-1.0.6.jar" #USE THIS FOR EVOSUITE 1.0.6
 EVOSUITE_JAR="${CURRENT_DIR}/tools/evosuite/evosuite-fb.jar" #USE THIS FOR EVOSUITE-FB
 EVOSUITE_ADDITIONAL_FLAGS="-generateSuite" #This is required when using evosuite-fb
+EVOSUITE_LOG="evosuite.log"
 JUNIT="${CURRENT_DIR}/tools/junit-4.12.jar"
 HAMCREST="${CURRENT_DIR}/tools/org.hamcrest.core_1.3.0.v201303031735.jar"
 #TESTING_JARS_ES="${CURRENT_DIR}/tools/evosuite/evosuite-standalone-runtime-1.0.6.jar" #USE THIS FOR EVOSUITE 1.0.6

@@ -15,4 +15,4 @@ Dstopping_condition=MaxTime
 Dminimize=true
 
 
-#EXTRA NOTE: EvoSuite FB should be run with these options: "-generateSuite", "-Dalgorithm=MONOTONIC_GA", "-Dsearch_budget=10", "-Dstopping_condition=MaxTime", "-Dminimize=true" ,"-class", targetClass
+#EXTRA NOTE: EvoSuite FB should be run with these options: "-generateSuite" (this one is set outside this file), "-Dalgorithm=MONOTONIC_GA", "-Dsearch_budget=10", "-Dstopping_condition=MaxTime", "-Dminimize=true"

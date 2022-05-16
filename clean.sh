@@ -15,5 +15,5 @@ else
     fi
 fi
 [ -e "instrumentedCode" ] && rm -rf "instrumentedCode"
-[ ! -z  "$(find . -name "jacoco.*")" ] && rm jacoco.*
+[ ! -z  "$(find . -maxdepth 1 -name "jacoco.*")" ] && rm jacoco.*
 [ -e "$EVOSUITE_LOG" ] && rm "$EVOSUITE_LOG"

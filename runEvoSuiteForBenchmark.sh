@@ -3,6 +3,7 @@
 source utils.sh
 source runEvoSuite_configuration.sh
 DEBUG=1
+KEEP_GOING_ON_EVOSUITE_SCRIPT_ERROR=1
 
 getoptWorks=""
 checkGetopt getoptWorks
@@ -166,10 +167,12 @@ fi
 
 #output structure:
 #
-#|------------Benchmark Folder-----------------------|
-#|                                                   |
-#outputFolder -> classesFileName ->  configFileName -> class -> tests (with tests inside)
-#                                                   |        -> logs
+#|-------------------------------------Case Folder-------|
+#                                                        |
+#|------------Benchmark Folder-----------------------|   |
+#|                                                   |   |
+#outputFolder -> classesFileName ->  configFileName -> class -> seed -> runID -> tests (with tests inside)
+#                                                   |                         -> logs
 #                                                   | -> benchmark.csv
 
 classes=$(grep -oE "^([[:alnum:]]|\.)+$" "$classesFile")
@@ -192,26 +195,70 @@ ecode="$?"
 [[ "$ecode" -ne "0" ]] && error "Failed to create benchmark folder ($benchmarkFolder)" 21
 
 for class in $classes; do
-    testsDir="tests"
-    logsDir="logs"
-    classFolder=""
-    appendPaths "$benchmarkFolder" "$class" 1 classFolder
-    appendPaths "$classFolder" "$testsDir" 1 testsDir
-    appendPaths "$classFolder" "$logsDir" 1 logsDir
-    mkdir -p "$testsDir"
-    ecode="$?"
-    [[ "$ecode" -ne "0" ]] && error "Failed to create tests folder ($testsDir)" 22
-    mkdir -p "$logsDir"
-    ecode="$?"
-    [[ "$ecode" -ne "0" ]] && error "Failed to create logs folder ($logsDir)" 23
-    ./runEvoSuite.sh --targetClassname "$class" -s "$sourceDir" -b "$binDir" --testDir "$testsDir" --classpath "$additionalClasspath" --configFile "$configFile"
-    ecode="$?"
-    [[ "$ecode" -ne "0" ]] && error "runEvoSuite.sh failed ($ecode)" 24
-    [ ! -z  "$(find . -name "jacoco.*")" ] && mv jacoco.* "$logsDir"
-    if [ -e "$EVOSUITE_LOG" ]; then
-        mv "$EVOSUITE_LOG" "$logsDir"
-    else
-        error "$EVOSUITE_LOG not found, this should not be happening" 25
-    fi
+    seedsExecuted=1
+    caseFolder="$class"
+    appendPaths "$benchmarkFolder" "$caseFolder" 1 caseFolder
+    for seed in $(grep -oE "^[[:digit:]]+$" "$seedsFile"); do
+        if [[ "$seedsExecuted" -eq "$runs" ]]; then
+            break
+        fi
+        currentRun=1
+        while [[ "$currentRun" -le "$runsPerSeed" ]]; do
+            idFolder="$seed/$currentRun/"
+            testsDir="tests"
+            logsDir="logs"
+            classFolder=""
+            appendPaths "$caseFolder" "$idFolder" 1 idFolder
+            appendPaths "$idFolder" "$testsDir" 1 testsDir
+            appendPaths "$idFolder" "$logsDir" 1 logsDir
+            mkdir -p "$testsDir"
+            ecode="$?"
+            [[ "$ecode" -ne "0" ]] && error "Failed to create tests folder ($testsDir)" 22
+            mkdir -p "$logsDir"
+            ecode="$?"
+            [[ "$ecode" -ne "0" ]] && error "Failed to create logs folder ($logsDir)" 23
+            if [[ "$additionalClasspathSet" -eq "1" ]]; then
+                debug "/runEvoSuite.sh --targetClassname $class -s $sourceDir -b $binDir --testDir $testsDir --classpath $additionalClasspath --configFile $configFile --seed $seed"
+                ./runEvoSuite.sh --targetClassname "$class" -s "$sourceDir" -b "$binDir" --testDir "$testsDir" --classpath "$additionalClasspath" --configFile "$configFile" --seed "$seed" 2>&1 | tee -a "$EVOSUITE_SCRIPT_LOG"
+            else
+                debug "/runEvoSuite.sh --targetClassname $class -s $sourceDir -b $binDir --testDir $testsDir --configFile $configFile --seed $seed"
+                ./runEvoSuite.sh --targetClassname "$class" -s "$sourceDir" -b "$binDir" --testDir "$testsDir" --configFile "$configFile" --seed "$seed" 2>&1 | tee -a "$EVOSUITE_SCRIPT_LOG"
+            fi
+            ecode="$?"
+            if [[ "$ecode" -ne "0" ]]; then
+                if [[ "$KEEP_GOING_ON_EVOSUITE_SCRIPT_ERROR" -eq "0" ]]; then
+                    error "runEvoSuite.sh failed ($ecode)" 24
+                else
+                    infoMessage "runEvoSuite.sh finished with error ($ecode), check file $EVOSUITE_SCRIPT_LOG"
+                    if [ ! -e "$EVOSUITE_SCRIPT_LOG" ]; then
+                        debug "$EVOSUITE_SCRIPT_LOG does not exist, something really bad happened"
+                        printf "Nothing recorded (no log found), this definitively should not be happening!\n" >> "$EVOSUITE_SCRIPT_LOG"
+                        printf "Available information is as follow:\n" >> "$EVOSUITE_SCRIPT_LOG"
+                        printf "\tClass: $class\n\tSeed: $seed\n\tCurrent Run: $currentRun\n\tSource Dir: $sourceDir\n\tBin Dir: $binDir\n\tTests Dir: $testsDir\n\tAdditional Classpath: $additionalClasspath\n\tConfig File: $configFile\n" >> "$EVOSUITE_SCRIPT_LOG"
+                        mv "$EVOSUITE_SCRIPT_LOG" "$logsDir"
+                    fi
+                    if [ ! -e "$EVOSUITE_LOG" ]; then
+                        printf "==ARTIFICIAL LOG CREATED AS TO KEEP GOING, SEE $EVOSUITE_SCRIPT_LOG==\n" >> "$EVOSUITE_LOG"
+                        printf "Generating tests for class $class\n" >> "$EVOSUITE_LOG"
+                        printf "Using seed $seed\n" >> "$EVOSUITE_LOG"
+                    fi
+                    ./evosuiteLog2Csv.sh "$EVOSUITE_LOG" "$benchmarkCsv" "$currentRun"
+                    mv "$EVOSUITE_LOG" "$logsDir"
+                fi
+            else
+                [ ! -z  "$(find . -name "jacoco.*")" ] && mv jacoco.* "$logsDir"
+                if [ -e "$EVOSUITE_LOG" ]; then
+                    ./evosuiteLog2Csv.sh "$EVOSUITE_LOG" "$benchmarkCsv" "$currentRun"
+                    mv "$EVOSUITE_LOG" "$logsDir"
+                else
+                    error "$EVOSUITE_LOG not found, this should not be happening" 25
+                fi
+            fi
+            infoMessage "Cleaning for next run (executing ./clean.sh)"
+            ./clean.sh
+            currentRun=$((currentRun+1))
+        done
+        seedsExecuted=$((seedsExecuted+1))
+    done
 done
 

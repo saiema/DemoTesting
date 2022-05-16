@@ -4,12 +4,11 @@
 #Arguments (criterion, seed, etc)
 
 criterion=FIELD
-seed=42
 
 #Properties (search_budget, junit_suffix, etc)
 #Important note: do not add the following properties, they are set within the script `Dtest_dir` and `Djunit_suffix`
 
-Dsearch_budget=300
+Dsearch_budget=10
 Dalgorithm=MONOTONIC_GA
 Dstopping_condition=MaxTime
 Dminimize=true

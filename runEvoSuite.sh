@@ -167,8 +167,14 @@ function evosuite() {
 	local outputDir="$3"
 	local argumentsAndProperties="$4"
 	local eseed="$5"
-	debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX --seed $eseed ${argumentsAndProperties}"
-	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" --seed "$eseed" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
+	if [ ! -z "$EVOSUITE_ADDITIONAL_FLAGS" ]; then
+	    debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX $EVOSUITE_ADDITIONAL_FLAGS --seed $eseed ${argumentsAndProperties}"
+	    java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" --seed "$eseed" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
+	else
+	    debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX --seed $eseed ${argumentsAndProperties}"
+	    java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" --seed "$eseed" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
+	fi
+	
 }
 
 #Compiles evosuite generated tests

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#set -x
 source utils.sh
 source runEvoSuite_configuration.sh
 DEBUG=1
@@ -195,7 +196,7 @@ ecode="$?"
 [[ "$ecode" -ne "0" ]] && error "Failed to create benchmark folder ($benchmarkFolder)" 21
 
 for class in $classes; do
-    seedsExecuted=1
+    seedsExecuted=0
     caseFolder="$class"
     appendPaths "$benchmarkFolder" "$caseFolder" 1 caseFolder
     for seed in $(grep -oE "^[[:digit:]]+$" "$seedsFile"); do

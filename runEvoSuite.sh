@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source utils.sh
+source runEvoSuite_configuration.sh
 DEBUG=1
 
 #set -x #Comment to disable debug output of this script (this is a full verbosity mode; you should use the debug functionality from utils.sh instead)
@@ -8,13 +9,13 @@ DEBUG=1
 getoptWorks=""
 checkGetopt getoptWorks
 if [[ "$getoptWorks" -eq "0" ]]; then
-    debug "getopt is working"
+    debug "getopt is working" 
 else
     error "getopt command is not working, please check that getopt is installed and available" 1
 fi
 
-LONGOPTIONS=targetClassname:,sourceDir:,binDir:,testDir:,classpath:,configFile:,help
-OPTIONS=t:,s:,b:,e:,c:,f:,h
+LONGOPTIONS=targetClassname:,sourceDir:,binDir:,testDir:,classpath:,configFile:,seed:,help
+OPTIONS=t:,s:,b:,e:,c:,f:,d:,h
 
 #Display script usage
 #error : if 0 the usage comes from normal behaviour, if > 0 then it comes from an error and will exit with this as exit code
@@ -22,7 +23,7 @@ OPTIONS=t:,s:,b:,e:,c:,f:,h
 function usage() {
     local code="$1"
     local extraMsg="$2"
-    local msg="Runs EvoSuite for a particular class and a given configuration for EvoSuite, then it runs JaCoCo to meassure line and branch coverage.\nUsage:\nrunEvoSuite.sh -[-h]elp to show this message\nrunEvoSuite.sh -[-t]argetClassname <target> -[-s]ourceDir <path> -[-b]inDir <path> -[-]t[e]stDir <path> -[-c]lasspath <paths> -[-]con[f]igFile <path>\n\tTarget class is a full classname.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig)."
+    local msg="Runs EvoSuite for a particular class and a given configuration for EvoSuite, then it runs JaCoCo to meassure line and branch coverage.\nUsage:\nrunEvoSuite.sh -[-h]elp to show this message\nrunEvoSuite.sh -[-t]argetClassname <target> -[-s]ourceDir <path> -[-b]inDir <path> -[-]t[e]stDir <path> -[-c]lasspath <paths> -[-]con[f]igFile <path> -[-]see[d] <int>n\tTarget class is a full classname.\n\tSource and Bin paths refers to where the sources (.java) and compiled (.class) files are located respectivelly.\n\tThe classpath refers to additional paths needed, these must be separated by ':'.\n\tThe config file refers to a .evoconfig file with the EvoSuite configuration to use (see example.evoconfig).\n\tThe seed will be used by EvoSuite and it must be a positive integer."
     if [[ "$code" -eq "0" ]]; then
         [ ! -z "$extraMsg" ] && infoMessage "$extraMsg"
         infoMessage "$msg"
@@ -50,6 +51,8 @@ additionalClasspath=""
 additionalClasspathSet=0
 configFile=""
 configFileSet=0
+seed=0
+seedSet=0
 
 PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 getoptExitCode="$?"
@@ -58,18 +61,6 @@ if [[ "$getoptExitCode" -ne "0" ]]; then
 fi
 
 eval set -- "$PARSED"
-
-classnameSet=0
-sourceDir=""
-sourceDirSet=0
-binDir=""
-binDirSet=0
-testDir=""
-testDirSet=0
-additionalClasspath=""
-additionalClasspathSet=0
-configFile=""
-configFileSet=0
 
 while true; do
 	case "$1" in
@@ -115,6 +106,12 @@ while true; do
 			configFileSet=1
 			shift 2
 		;;
+		--seed | -d)
+		    seed="$2"
+		    $(echo "$seed" | grep -qE "^[[:digit:]]+$") || error "Seed must be a positive number ($seed)" 8
+		    seedSet=1
+		    shift 2
+		;;
 		--help | -h)
 			usage 0 ""
 		;;
@@ -139,6 +136,7 @@ fi
 [[ "$testDirSet" -ne "1" ]] && usage 8 "Tests directory was not set"
 [[ "$additionalClasspathSet" -ne "1" ]] && debug "No additional classpath was set"
 [[ "$configFileSet" -ne "1" ]] && usage 8 "Configuration file was not set"
+[[ "$seedSet" -ne "1" ]] && usage 8 "Seed was not set"
 
 infoMessage "Parsing EvoSuite configuration from ${configFile} ..."
 
@@ -152,30 +150,15 @@ append "$evoArguments" "$evoProperties" " " evosuiteArguments
 debug "EvoSuite configuration parsed\nArguments: ${evoArguments}\nProperties: ${evoProperties}\nEvoSuite all arguments: ${evosuiteArguments}"
 
 classnameAsPath=$(echo "$classname" | sed 's;\.;/;g')
-#
-#Constants
-CURRENT_DIR=$(pwd)
-#JUNIT AND EVOSUITE
-EVOSUITE_JAR="${CURRENT_DIR}/tools/evosuite/evosuite-1.0.6.jar"
-JUNIT="${CURRENT_DIR}/tools/junit-4.12.jar"
-HAMCREST="${CURRENT_DIR}/tools/org.hamcrest.core_1.3.0.v201303031735.jar"
-TESTING_JARS_ES="${CURRENT_DIR}/tools/evosuite/evosuite-standalone-runtime-1.0.6.jar"
-ES_JUNIT_SUFFIX="ESTest"	#EvoSuite test suffix
-#JACOCO
-USE_OFFLINE_INSTRUMENTATION=1 #0 : do not use offline instrumentation; 1 : use offline instrumentation
-OFFLINE_EXEC_FILE_LOCATION="jacoco.exec"
-OFFLINE_INSTR_DIR_LOCATION="instrumentedCode"
-JACOCO_AGENT="JaCoCoRS/jacocoagent.jar"
-JACOCO_CLI="JaCoCoRS/jacococli.jar"
-JACOCO_REPORT="JaCoCoRS/JaCoCoRS.sh"
-#
-########################################################################
+
+#############################################################################################################################################
 
 #Runs evosuite for the given arguments:
-#class 			: class for which to generate tests
-#project classpath 	: classpath to project related code and libraries
-#output dir		: where tests will be placed
-#argumentsAndProperties :   arguments and properties for EvoSuite (excluding Dtest_dir and Djunit_suffix)
+#class 			        : class for which to generate tests
+#project classpath 	    : classpath to project related code and libraries
+#output dir		        : where tests will be placed
+#argumentsAndProperties : arguments and properties for EvoSuite (excluding Dtest_dir, Djunit_suffix, and --seed)
+#seed                   : the seed to be used by EvoSuite
 function evosuite() {
 	infoMessage "Running EvoSuite..."
 	#-base_dir $outputDir 
@@ -183,8 +166,15 @@ function evosuite() {
 	local projectCP="$2"
 	local outputDir="$3"
 	local argumentsAndProperties="$4"
-	debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX ${argumentsAndProperties}"
-	java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" ${argumentsAndProperties}
+	local eseed="$5"
+	if [ ! -z "$EVOSUITE_ADDITIONAL_FLAGS" ]; then
+	    debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX $EVOSUITE_ADDITIONAL_FLAGS --seed $eseed ${argumentsAndProperties}"
+	    java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" "$EVOSUITE_ADDITIONAL_FLAGS" --seed "$eseed" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
+	else
+	    debug "Running cmd: java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir=$outputDir -Djunit_suffix=$ES_JUNIT_SUFFIX --seed $eseed ${argumentsAndProperties}"
+	    java -jar $EVOSUITE_JAR -class $class -projectCP $projectCP -Dtest_dir="$outputDir" -Djunit_suffix="$ES_JUNIT_SUFFIX" --seed "$eseed" ${argumentsAndProperties} 2>&1 | tee -a "$EVOSUITE_LOG"
+	fi
+	
 }
 
 #Compiles evosuite generated tests
@@ -268,8 +258,8 @@ function jacoco() {
 			error "Deactivating original file failed (${exitCode})" 502
 		fi
 		debug "Running tests with instrumented class"
-		debug "Running cmd: java -cp $classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT -Djacoco-agent.destfile=${OFFLINE_EXEC_FILE_LOCATION} org.junit.runner.JUnitCore $tests"
-		java -cp "$classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT:$OFFLINE_INSTR_DIR_LOCATION" -Djacoco-agent.destfile=${OFFLINE_EXEC_FILE_LOCATION} $JUNIT_RUNNER $tests
+		debug "Running cmd: java -cp $classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT -Djacoco-agent.destfile=${JACOCO_EXEC_FILE} org.junit.runner.JUnitCore $tests"
+		java -cp "$classpath:$testpath:$JUNIT:$HAMCREST:$TESTING_JARS_ES:$JACOCO_AGENT:$OFFLINE_INSTR_DIR_LOCATION" -Djacoco-agent.destfile=${JACOCO_EXEC_FILE} $JUNIT_RUNNER $tests
 		exitCode="$?"
 		debug "Restoring original file $fullPathToClassToAnalize"
 		mv "${fullPathToClassToAnalize}.bak" "$fullPathToClassToAnalize"
@@ -290,15 +280,20 @@ function jacoco() {
 		fi
 	fi
 	debug "All tests executed, generating JaCoCo raw report"
-	debug "Running cmd: java -jar $JACOCO_CLI report jacoco.exec --classfiles $fullPathToClassToAnalize --sourcefiles $fullPathToSourceOfClassToAnalize --xml jacoco.report.xml"
-	java -jar "$JACOCO_CLI" report "jacoco.exec" --classfiles "$fullPathToClassToAnalize" --sourcefiles "$fullPathToSourceOfClassToAnalize" --xml "jacoco.report.xml"
-	exitCode="$?"
-	if [[ "$exitCode" -ne "0" ]]; then
-		error "Error generating JaCoCo raw report (${exitCode})" 505
+	if [ ! -e "$JACOCO_EXEC_FILE" ]; then
+	    infoMessage "No JaCoCo exec file found ($JACOCO_EXEC_FILE), this is most likely due to no test exercised the target class ($classToAnalyze)"
+	    echo "File $JACOCO_EXEC_FILE not found, is probably that no test exercised the target class ($classToAnalyze)" > "$JACOCO_REPORT_RESUMED_FILE"
+	else
+	    debug "Running cmd: java -jar $JACOCO_CLI report jacoco.exec --classfiles $fullPathToClassToAnalize --sourcefiles $fullPathToSourceOfClassToAnalize --xml jacoco.report.xml"
+	    java -jar "$JACOCO_CLI" report "jacoco.exec" --classfiles "$fullPathToClassToAnalize" --sourcefiles "$fullPathToSourceOfClassToAnalize" --xml "jacoco.report.xml"
+	    exitCode="$?"
+	    if [[ "$exitCode" -ne "0" ]]; then
+		    error "Error generating JaCoCo raw report (${exitCode})" 505
+	    fi
+	    sed -i 's;<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">;;g' "jacoco.report.xml"
+	    infoMessage "Generating resumed JaCoCo report (saving to file $JACOCO_REPORT_RESUMED_FILE)"
+	    $JACOCO_REPORT "jacoco.report.xml" --class "$classToAnalyze" >"$JACOCO_REPORT_RESUMED_FILE"  
 	fi
-	sed -i 's;<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">;;g' "jacoco.report.xml"
-	infoMessage "Generating resumed JaCoCo report (saving to file jacoco.report.resumed)"
-	$JACOCO_REPORT "jacoco.report.xml" --class "$classToAnalyze" >"jacoco.report.resumed"
 }
 
 
@@ -332,7 +327,7 @@ evosuiteTime=""
 
 
 START=$(date +%s.%N)
-evosuite "$classname" "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "$evosuiteArguments"
+evosuite "$classname" "${CURRENT_DIR}/$binDir" "${CURRENT_DIR}/$testDir" "$evosuiteArguments" "$seed"
 ecode="$?"
 if [[ "$ecode" -ne "0" ]]; then
 	error "EvoSuite failed ($ecode)" 201

@@ -4,10 +4,10 @@ This is a framework of scripts to easily run evosuite and randoop to generate te
 the generated tests, and to finally generate a csv file with all the collected data. There is also a script that allows to run a whole benchmark
 with both tools.
 
-EvoSuite: http://www.evosuite.org 
-Randoop: https://randoop.github.io/randoop/
-JaCoCo: https://github.com/jacoco/jacoco
-EvoDoop: https://github.com/saiema/EvoDoop
+ * EvoSuite: http://www.evosuite.org 
+ * Randoop: https://randoop.github.io/randoop/
+ * JaCoCo: https://github.com/jacoco/jacoco
+ * EvoDoop: https://github.com/saiema/EvoDoop
 
 # Scripts to run EvoSuite and Randoop with JaCoCo for test coverage
 

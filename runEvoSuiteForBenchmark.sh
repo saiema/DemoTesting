@@ -37,6 +37,101 @@ function usage() {
     fi
 }
 
+#Creates a new csv file and writes JaCoCo related headers
+#This function expect that the csv file does not exist
+#csvFile    : the csv file
+#result(R)  : an exit code (0 : all went fine; >0 : a problem arised)
+function jacocoCSVHeaders() {
+    local csvFile="$1"
+    local exitCode=0
+    local SEPARATOR=","
+    local JACOCO_CSV_COLUMNS="CLASS${SEPARATOR}RUN_ID${SEPARATOR}SEED${SEPARATOR}BRANCH_PER${SEPARATOR}BRANCH_COV${SEPARATOR}BRANCH_TOT${SEPARATOR}LINE_PER${SEPARATOR}LINE_COV${SEPARATOR}LINE_TOT"
+    debug "Initializing JaCoCo CSV file ($csvFile) ..."
+    if [ -f "$csvFile" ]; then
+        debug "JaCoCo CSV file ($csvFile) already exist"
+        exitCode=26
+    else
+        touch "$csvFile"
+        local ec="$?"
+        if [[ "$ec" -ne "0" ]]; then
+            debug "Could not create file ($csvFile) ($ec)"
+            exitCode=27
+        else
+            printf "%s\n" "$JACOCO_CSV_COLUMNS" >> "$csvFile"
+            ec="$?"
+            if [[ "$ec" -ne "0" ]]; then
+                debug "Could not write to file ($csvFile) ($ec)"
+                exitCode=28
+            fi
+        fi
+    fi
+    debug "Initialization of JaCoCo CSV file ($csvFile) ended with code ($exitCode)"
+    eval "$2='$exitCode'"
+}
+
+#Saves JaCoCo related information for a specific case into a csv
+#class      : the class name
+#seed       : the seed used
+#runID      : the runID used
+#jFileIn    : a jacoco.report.resumed file
+#jFileOut   : a csv file path
+#result(R)  : an exit code (0 : all went fine; 1 : a problem arised)
+function saveToJaCoCoCsv() {
+    local class="$1"
+    local seed="$2"
+    local runID="$3"
+    local jFileIn="$4"
+    local jFileOut="$5"
+    local exitCode=0
+    debug "Writting data to JaCoCo CSV file ($jFileOut) from ($jFileIn) ..."
+    if [ ! -f "$jFileIn" ]; then
+        debug "JaCoCo input file ($jFileIn) does not exist"
+        exitCode=29
+    else
+        if [ ! -f "$jFileOut" ]; then
+            debug "JaCoCo CSV file ($jFileOut) does not exist, creating file ..."
+            jacocoCSVHeaders "$jFileOut" exitCode
+            if [[ "$exitCode" -ne "0" ]]; then
+                debug "An error ocurred while trying to create JaCoCo file ($jFileOut) ($exitCode)"
+                exitCode=30 
+            fi
+        fi
+        if [[ "$exitCode" -eq "0" ]]; then
+            local jFileInLINECOVLine=$(grep -oEn "^.*LINE.*$" "$jFileIn" | cut -d: -f1)
+            local jFileInLINECOVTotalLine=$(($jFileInLINECOVLine+1))
+            local jFileInLINECOVCoveredLine=$(($jFileInLINECOVLine+2))
+            local jFileInLINECOVTPerLine=$(($jFileInLINECOVLine+4))
+            local jLCOVTotal=$(sed "${jFileInLINECOVTotalLine}q;d" "$jFileIn")
+            local jLCOVCovered=$(sed "${jFileInLINECOVCoveredLine}q;d" "$jFileIn")
+            local jLCOVPer=$(sed "${jFileInLINECOVTPerLine}q;d" "$jFileIn")
+            local jFileInBRANCHCovLine=$(grep -oEn "^.*BRANCH.*$" "$jFileIn" | cut -d: -f1)
+            local jFileInBRANCHCOVTotalLine=$(($jFileInBRANCHCovLine+1))
+            local jFileInBRANCHCOVCoveredLine=$(($jFileInBRANCHCovLine+2))
+            local jFileInBRANCHCOVTPerLine=$(($jFileInBRANCHCovLine+4))
+            local jBCOVTotal=$(sed "${jFileInBRANCHCOVTotalLine}q;d" "$jFileIn")
+            local jBCOVCovered=$(sed "${jFileInBRANCHCOVCoveredLine}q;d" "$jFileIn")
+            local jBCOVPer=$(sed "${jFileInBRANCHCOVTPerLine}q;d" "$jFileIn")
+            [ -z "$jLCOVTotal" ] && jLCOVTotal="N/A"
+            [ -z "$jLCOVCovered" ] && jLCOVCovered="N/A"
+            [ -z "$jLCOVPer" ] && jLCOVPer="N/A"
+            [ -z "$jBCOVTotal" ] && jBCOVTotal="N/A"
+            [ -z "$jBCOVCovered" ] && jBCOVCovered="N/A"
+            [ -z "$jBCOVPer" ] && jBCOVPer="N/A"
+            local SEP=","
+            local toWrite="${class}${SEP}${runID}${SEP}${seed}${SEP}${jBCOVPer}${SEP}${jBCOVCovered}${SEP}${jBCOVTotal}${SEP}${jLCOVPer}${SEP}${jLCOVCovered}${SEP}${jLCOVTotal}"
+            printf "%s\n" "$toWrite" >> "$jFileOut"
+            exitCode="$?"
+            if [[ "$exitCode" -ne "0" ]]; then
+                debug "Could not write to file ($jFileOut) ($exitCode)"
+                exitCode=31
+            else
+                debug "Finished writting data from ($jFileIn) to ($jFileOut)"
+            fi
+        fi
+    fi
+    eval "$6='$exitCode'"
+}
+
 
 #Arguments
 classesFile=""
@@ -175,6 +270,7 @@ fi
 #outputFolder -> classesFileName ->  configFileName -> class -> seed -> runID -> tests (with tests inside)
 #                                                   |                         -> logs
 #                                                   | -> benchmark.csv
+#                                                   | -> benchmark_jacoco.csv
 
 classes=$(grep -oE "^([[:alnum:]]|\.)+$" "$classesFile")
 nclasses=$(grep -oE "^([[:alnum:]]|\.)+$" "$classesFile" | wc -l)
@@ -187,7 +283,9 @@ configFileBaseName=$(echo "$configFile" | sed "s|\.[^\.]*$||g")
 appendPaths "$outputFolder" "$classesFileBaseName" 1 benchmarkFolder
 appendPaths "$benchmarkFolder" "$configFileBaseName" 1 benchmarkFolder
 benchmarkCsv="benchmark.csv"
+benchmarkJacocoCsv="benchmark_jacoco.csv"
 appendPaths "$benchmarkFolder" "$benchmarkCsv" 0 benchmarkCsv
+appendPaths "$benchmarkFolder" "$benchmarkJacocoCsv" 0 benchmarkJacocoCsv
 
 infoMessage "Benchmark output folder will be ($benchmarkFolder)"
 
@@ -212,6 +310,7 @@ for class in $classes; do
             appendPaths "$caseFolder" "$idFolder" 1 idFolder
             appendPaths "$idFolder" "$testsDir" 1 testsDir
             appendPaths "$idFolder" "$logsDir" 1 logsDir
+            appendPaths "$logsDir" "jacoco.report.resumed" 0 jacocoResumedFile
             mkdir -p "$testsDir"
             ecode="$?"
             [[ "$ecode" -ne "0" ]] && error "Failed to create tests folder ($testsDir)" 22
@@ -255,6 +354,14 @@ for class in $classes; do
                     error "$EVOSUITE_LOG not found, this should not be happening" 25
                 fi
             fi
+            if [ ! -f "$jacocoResumedFile" ]; then
+                debug "JaCoCo report.resumed file not found in $logsDir, creating a dummy one ... "
+                printf "==ARTIFICIAL CONTENT CREATED AS TO KEEP GOING, SEE $EVOSUITE_SCRIPT_LOG==\n" >> "$jacocoResumedFile"
+            fi
+            saveToJaCoCoCsv "$class" "$seed" "$currentRun" "$jacocoResumedFile" "$benchmarkJacocoCsv" jacocoCSVEC
+            if [[ "$jacocoCSVEC" -ne "0" ]]; then
+                error "Failed to save JaCoCo data to $jacocoCSVEC ($jacocoCSVEC), this should not happen"
+            fi
             infoMessage "Cleaning for next run (executing ./clean.sh)"
             ./clean.sh
             currentRun=$((currentRun+1))
@@ -262,4 +369,3 @@ for class in $classes; do
         seedsExecuted=$((seedsExecuted+1))
     done
 done
-

@@ -97,20 +97,30 @@ function saveToJaCoCoCsv() {
             fi
         fi
         if [[ "$exitCode" -eq "0" ]]; then
-            local jFileInLINECOVLine=$(grep -oEn "^.*LINE.*$" "$jFileIn" | cut -d: -f1)
-            local jFileInLINECOVTotalLine=$(($jFileInLINECOVLine+1))
-            local jFileInLINECOVCoveredLine=$(($jFileInLINECOVLine+2))
-            local jFileInLINECOVTPerLine=$(($jFileInLINECOVLine+4))
-            local jLCOVTotal=$(sed "${jFileInLINECOVTotalLine}q;d" "$jFileIn")
-            local jLCOVCovered=$(sed "${jFileInLINECOVCoveredLine}q;d" "$jFileIn")
-            local jLCOVPer=$(sed "${jFileInLINECOVTPerLine}q;d" "$jFileIn")
-            local jFileInBRANCHCovLine=$(grep -oEn "^.*BRANCH.*$" "$jFileIn" | cut -d: -f1)
-            local jFileInBRANCHCOVTotalLine=$(($jFileInBRANCHCovLine+1))
-            local jFileInBRANCHCOVCoveredLine=$(($jFileInBRANCHCovLine+2))
-            local jFileInBRANCHCOVTPerLine=$(($jFileInBRANCHCovLine+4))
-            local jBCOVTotal=$(sed "${jFileInBRANCHCOVTotalLine}q;d" "$jFileIn")
-            local jBCOVCovered=$(sed "${jFileInBRANCHCOVCoveredLine}q;d" "$jFileIn")
-            local jBCOVPer=$(sed "${jFileInBRANCHCOVTPerLine}q;d" "$jFileIn")
+            local jLCOVTotal="N/A"
+            local jLCOVCovered="N/A"
+            local jLCOVPer="N/A"
+            if $(grep -Eq "^.*class LINE coverage.*$" "$jFileIn"); then
+                local jFileInLINECOVLine=$(grep -oEn "^.*class LINE coverage.*$" "$jFileIn" | cut -d: -f1)
+                local jFileInLINECOVTotalLine=$(($jFileInLINECOVLine+1))
+                local jFileInLINECOVCoveredLine=$(($jFileInLINECOVLine+2))
+                local jFileInLINECOVTPerLine=$(($jFileInLINECOVLine+4))
+                jLCOVTotal=$(sed "${jFileInLINECOVTotalLine}q;d" "$jFileIn" | sed "s|TOTAL    :  ||g")
+                jLCOVCovered=$(sed "${jFileInLINECOVCoveredLine}q;d" "$jFileIn" | sed "s|COVERED  :  ||g")
+                jLCOVPer=$(sed "${jFileInLINECOVTPerLine}q;d" "$jFileIn" | sed "s|COVERAGE :  ||g")
+            fi
+            local jBCOVTotal="N/A"
+            local jBCOVCovered="N/A"
+            local jBCOVPer="N/A"
+            if $(grep -Eq "^.*class BRANCH coverage.*$" "$jFileIn"); then
+                local jFileInBRANCHCovLine=$(grep -oEn "^.*class BRANCH coverage.*$" "$jFileIn" | cut -d: -f1)
+                local jFileInBRANCHCOVTotalLine=$(($jFileInBRANCHCovLine+1))
+                local jFileInBRANCHCOVCoveredLine=$(($jFileInBRANCHCovLine+2))
+                local jFileInBRANCHCOVTPerLine=$(($jFileInBRANCHCovLine+4))
+                jBCOVTotal=$(sed "${jFileInBRANCHCOVTotalLine}q;d" "$jFileIn" | sed "s|TOTAL    :  ||g")
+                jBCOVCovered=$(sed "${jFileInBRANCHCOVCoveredLine}q;d" "$jFileIn" | sed "s|COVERED  :  ||g")
+                jBCOVPer=$(sed "${jFileInBRANCHCOVTPerLine}q;d" "$jFileIn" | sed "s|COVERAGE :  ||g")
+            fi
             [ -z "$jLCOVTotal" ] && jLCOVTotal="N/A"
             [ -z "$jLCOVCovered" ] && jLCOVCovered="N/A"
             [ -z "$jLCOVPer" ] && jLCOVPer="N/A"

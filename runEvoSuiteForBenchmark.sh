@@ -345,7 +345,6 @@ for class in $classes; do
                         printf "Nothing recorded (no log found), this definitively should not be happening!\n" >> "$EVOSUITE_SCRIPT_LOG"
                         printf "Available information is as follow:\n" >> "$EVOSUITE_SCRIPT_LOG"
                         printf "\tClass: $class\n\tSeed: $seed\n\tCurrent Run: $currentRun\n\tSource Dir: $sourceDir\n\tBin Dir: $binDir\n\tTests Dir: $testsDir\n\tAdditional Classpath: $additionalClasspath\n\tConfig File: $configFile\n" >> "$EVOSUITE_SCRIPT_LOG"
-                        mv "$EVOSUITE_SCRIPT_LOG" "$logsDir"
                     fi
                     if [ ! -e "$EVOSUITE_LOG" ]; then
                         printf "==ARTIFICIAL LOG CREATED AS TO KEEP GOING, SEE $EVOSUITE_SCRIPT_LOG==\n" >> "$EVOSUITE_LOG"
@@ -354,6 +353,7 @@ for class in $classes; do
                     fi
                     ./evosuiteLog2Csv.sh "$EVOSUITE_LOG" "$benchmarkCsv" "$currentRun"
                     mv "$EVOSUITE_LOG" "$logsDir"
+                    mv "$EVOSUITE_SCRIPT_LOG" "$logsDir"
                 fi
             else
                 [ ! -z  "$(find . -name "jacoco.*")" ] && mv jacoco.* "$logsDir"

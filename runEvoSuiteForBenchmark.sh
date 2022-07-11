@@ -360,6 +360,7 @@ for class in $classes; do
                 if [ -e "$EVOSUITE_LOG" ]; then
                     ./evosuiteLog2Csv.sh "$EVOSUITE_LOG" "$benchmarkCsv" "$currentRun"
                     mv "$EVOSUITE_LOG" "$logsDir"
+                    mv "$EVOSUITE_SCRIPT_LOG" "$logsDir"
                 else
                     error "$EVOSUITE_LOG not found, this should not be happening" 25
                 fi
